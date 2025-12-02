@@ -1,0 +1,130 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>sdraoui </title>
+    <style>
+        body {
+            margin: 0;
+            font-family: "Segoe UI", sans-serif;
+            background: #f5f7fa;
+        }
+        header {
+            background: linear-gradient(135deg, #005bea, #00c6fb);
+            padding: 60px 20px;
+            text-align: center;
+            color: #fff;
+        }
+        header h1 {
+            margin: 0;
+            font-size: 40px;
+            font-weight: bold;
+        }
+        header p {
+            margin-top: 10px;
+            font-size: 18px;
+            opacity: .9;
+        }
+        nav {
+            background: #fff;
+            padding: 15px;
+            display: flex;
+            justify-content: center;
+            gap: 20px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+            position: sticky;
+            top: 0;
+            z-index: 10;
+        }
+        nav a {
+            text-decoration: none;
+            color: #005bea;
+            font-weight: bold;
+            transition: .3s;
+        }
+        nav a:hover {
+            color: #003f9e;
+        }
+        .section {
+            padding: 60px 20px;
+            max-width: 1000px;
+            margin: auto;
+        }
+        .section h2 {
+            font-size: 28px;
+            margin-bottom: 15px;
+            color: #003f9e;
+        }
+        .card-container {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+            gap: 20px;
+            margin-top: 30px;
+        }
+        .card {
+            background: #fff;
+            padding: 20px;
+            border-radius: 12px;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+            transition: .3s;
+        }
+        .card:hover {
+            transform: translateY(-5px);
+        }
+        footer {
+            margin-top: 60px;
+            background: #003f9e;
+            color: #fff;
+            text-align: center;
+            padding: 20px;
+        }
+    </style>
+</head>
+<body>
+
+<header>
+    <h1>welcome to my page</h1>
+    <p>أفضل مكان لعرض خدماتك وأعمالك</p>
+</header>
+
+<nav>
+    <a href="#about">من نحن</a>
+    <a href="#services">الخدمات</a>
+    <a href="#contact">اتصل بنا</a>
+</nav>
+
+<section id="about" class="section">
+    <h2>من  نحن</h2>
+    <p>نحن فريق متخصص نسعى لتقديم أفضل الحلول الرقمية بتصميمات حديثة واحترافية وتجربة مستخدم ممتازة.</p>
+</section>
+
+<section id="services" class="section">
+    <h2>الخدمات</h2>
+    <div class="card-container">
+        <div class="card">
+            <h3>تحميل الألعاب</h3>
+            <p>إنشاء وتصميم مواقع متجاوبة تعمل على جميع الأجهزة.</p>
+        </div>
+        <div class="card">
+            <h3>تطوير تطبيقات</h3>
+            <p>تطوير تطبيقات ويب حديثة وسريعة.</p>
+        </div>
+        <div class="card">
+            <h3>تحسين محركات البحث</h3>
+            <p>رفع ترتيب موقعك في محركات البحث.</p>
+        </div>
+    </div>
+</section>
+
+<section id="contact" class="section">
+    <h2>اتصل بنا</h2>
+    <p>راسلنا عبر البريد: example@mail.com</p>
+</section>
+
+<footer>
+    جميع الحقوق محفوظة © 2025
+</footer>
+
+</body>
+</html>
