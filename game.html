@@ -1,0 +1,282 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>adventure game</title>
+  <style>
+    :root{--accent:#005bea}
+    html,body{height:100%;margin:0;font-family:Tahoma,Arial,Helvetica,sans-serif;background:#111}
+    #game-container{width:100%;height:100%;overflow:hidden;position:fixed;inset:0}
+    #hud{position:fixed;left:20px;top:20px;color:#fff;z-index:10;text-align:left}
+    #hud .score{background:rgba(0,0,0,0.4);padding:10px 14px;border-radius:8px;box-shadow:0 6px 18px rgba(0,0,0,0.6)}
+    #startScreen{position:fixed;inset:0;display:flex;align-items:center;justify-content:center;z-index:20}
+    .panel{background:linear-gradient(180deg,#0b1220,#07102a);color:#fff;padding:26px;border-radius:12px;min-width:320px;box-shadow:0 10px 50px rgba(0,0,0,0.7);text-align:center}
+    .panel h1{margin:0 0 8px;font-size:24px}
+    .panel p{margin:0 0 16px;color:#cbd6ff}
+    button{cursor:pointer;border:0;padding:10px 16px;border-radius:8px;background:var(--accent);color:#fff;font-weight:700}
+    #message{position:fixed;right:20px;top:20px;color:#fff;z-index:10}
+    a.credit{color:#cfe1ff}
+    /* small tip bar */
+    #tips{position:fixed;left:50%;transform:translateX(-50%);bottom:18px;background:rgba(0,0,0,0.5);color:#fff;padding:8px 12px;border-radius:999px;font-size:13px;z-index:11}
+  </style>
+</head>
+<body>
+  <div id="game-container"></div>
+
+  <div id="hud">
+    <div class="score">النقاط: <span id="score">0</span></div>
+  </div>
+
+  <div id="message"></div>
+
+  <div id="tips">WASD أو أسهم للتحرك — مسافة النقر للفأرة لتثبيت المؤشر</div>
+
+  <div id="startScreen">
+    <div class="panel">
+      <h1>لعبة مغامرة</h1>
+      <p>جمع الكرات الذهبية وتجنب الصناديق المتحركة. انقر "ابدأ" ثم انقر داخل الشاشة لتثبيت المؤشر.</p>
+      <button id="startBtn">ابدأ اللعبة</button>
+      <p style="font-size:12px;margin-top:12px;color:#9fb7ff">تم إنجازها بواسطة</p>
+    </div>
+  </div>
+
+  <!-- نستخدم Three.js من CDN -->
+  <script src="https://unpkg.com/three@0.152.2/build/three.min.js"></script>
+  <script>
+  // === إعداد المشهد والكاميرا ===
+  const container = document.getElementById('game-container');
+  const scene = new THREE.Scene();
+  scene.background = new THREE.Color(0x87ceeb);
+
+  const renderer = new THREE.WebGLRenderer({ antialias:true });
+  renderer.setSize(window.innerWidth, window.innerHeight);
+  renderer.shadowMap.enabled = true;
+  container.appendChild(renderer.domElement);
+
+  const camera = new THREE.PerspectiveCamera(75, window.innerWidth/window.innerHeight, 0.1, 2000);
+  camera.position.set(0,1.6,5);
+
+  // إضاءة
+  const amb = new THREE.AmbientLight(0xffffff,0.6);
+  scene.add(amb);
+  const dir = new THREE.DirectionalLight(0xffffff,0.8);
+  dir.position.set(5,10,7);
+  dir.castShadow = true;
+  scene.add(dir);
+
+  // أرض
+  const groundMat = new THREE.MeshStandardMaterial({color:0x2b7a2b});
+  const ground = new THREE.Mesh(new THREE.PlaneGeometry(200,200), groundMat);
+  ground.rotation.x = -Math.PI/2;
+  ground.receiveShadow = true;
+  scene.add(ground);
+
+  // طرق وعناصر قليلة
+  const obstacles = new THREE.Group();
+  scene.add(obstacles);
+
+  function makeBox(x,z, moving=false){
+    const g = new THREE.BoxGeometry(1.5,1.5,1.5);
+    const m = new THREE.MeshStandardMaterial({color:0x8b4513});
+    const mesh = new THREE.Mesh(g,m);
+    mesh.position.set(x,0.75,z);
+    mesh.castShadow = true;
+    mesh.userData.moving = moving;
+    if(moving) mesh.userData.dir = Math.random()>0.5?1:-1;
+    obstacles.add(mesh);
+  }
+
+  // أنشاء بعض الصناديق
+  for(let i=0;i<12;i++){
+    const x = (Math.random()-0.5)*50;
+    const z = (Math.random()-0.5)*50;
+    makeBox(x,z, Math.random()>0.6);
+  }
+
+  // كرات قابلة للالتقاط
+  const collectibles = new THREE.Group();
+  scene.add(collectibles);
+
+  function makeCollectible(x,z){
+    const geo = new THREE.SphereGeometry(0.35,16,16);
+    const mat = new THREE.MeshStandardMaterial({emissive:0xffd54f,emissiveIntensity:0.9,color:0xdeb887});
+    const s = new THREE.Mesh(geo,mat);
+    s.position.set(x,0.35,z);
+    s.userData.collected = false;
+    collectibles.add(s);
+  }
+
+  for(let i=0;i<10;i++){
+    const x = (Math.random()-0.5)*40;
+    const z = (Math.random()-0.5)*40;
+    makeCollectible(x,z);
+  }
+
+  // سماعات صغيرة (visual helper)
+  const player = {velocity:new THREE.Vector3(), direction:new THREE.Vector3(), canJump:false};
+
+  // تحكم بواسطة WASD + Pointer Lock
+  const keys = {forward:false,back:false,left:false,right:false};
+
+  document.addEventListener('keydown', e=>{
+    if(e.code==='KeyW' || e.code==='ArrowUp') keys.forward=true;
+    if(e.code==='KeyS' || e.code==='ArrowDown') keys.back=true;
+    if(e.code==='KeyA' || e.code==='ArrowLeft') keys.left=true;
+    if(e.code==='KeyD' || e.code==='ArrowRight') keys.right=true;
+    if(e.code==='Space' && player.canJump){ player.velocity.y = 6; player.canJump=false; }
+  });
+  document.addEventListener('keyup', e=>{
+    if(e.code==='KeyW' || e.code==='ArrowUp') keys.forward=false;
+    if(e.code==='KeyS' || e.code==='ArrowDown') keys.back=false;
+    if(e.code==='KeyA' || e.code==='ArrowLeft') keys.left=false;
+    if(e.code==='KeyD' || e.code==='ArrowRight') keys.right=false;
+  });
+
+  // Pointer lock controls - بسيط
+  let pitch = 0; let yaw = 0;
+
+  renderer.domElement.addEventListener('click',()=>{ if(document.pointerLockElement!==renderer.domElement){ renderer.domElement.requestPointerLock(); } });
+
+  document.addEventListener('pointerlockchange',()=>{
+    if(document.pointerLockElement===renderer.domElement){ document.addEventListener('mousemove', onMouseMove); }
+    else { document.removeEventListener('mousemove', onMouseMove); }
+  });
+
+  function onMouseMove(e){
+    const movementX = e.movementX || 0;
+    const movementY = e.movementY || 0;
+    yaw -= movementX * 0.002;
+    pitch -= movementY * 0.002;
+    pitch = Math.max(-Math.PI/2, Math.min(Math.PI/2, pitch));
+  }
+
+  // مصادم بسيط مع الأرض والعناصر
+  const raycaster = new THREE.Raycaster();
+
+  let score = 0;
+  const scoreEl = document.getElementById('score');
+  const messageEl = document.getElementById('message');
+
+  function collectCheck(){
+    const pc = new THREE.Vector3().copy(camera.position);
+    collectibles.children.forEach((c)=>{
+      if(c.userData.collected) return;
+      const d = c.position.distanceTo(pc);
+      if(d < 1.0){
+        c.userData.collected = true;
+        scene.remove(c);
+        score += 10;
+        scoreEl.innerText = score;
+        showMessage('+10');
+      }
+    });
+  }
+
+  let lastTime = performance.now();
+
+  function showMessage(text){
+    messageEl.innerText = text;
+    messageEl.style.opacity = 1;
+    setTimeout(()=>{ messageEl.style.opacity = 0; messageEl.innerText = ''; },900);
+  }
+
+  // حلقة اللعبة
+  function animate(){
+    requestAnimationFrame(animate);
+    const now = performance.now();
+    const dt = Math.min(0.05,(now - lastTime)/1000);
+    lastTime = now;
+
+    // تحديث صناديق متحركة
+    obstacles.children.forEach(box=>{
+      if(box.userData.moving){
+        box.position.x += box.userData.dir * dt * 2.2;
+        if(box.position.x > 30 || box.position.x < -30) box.userData.dir *= -1;
+      }
+    });
+
+    // تحريك اللاعب
+    const speed = 6.0;
+    player.direction.set(0,0,0);
+    if(keys.forward) player.direction.z -= 1;
+    if(keys.back) player.direction.z += 1;
+    if(keys.left) player.direction.x -= 1;
+    if(keys.right) player.direction.x += 1;
+    player.direction.normalize();
+
+    // تحويل اتجاه حسب زاوية yaw
+    const sinY = Math.sin(yaw), cosY = Math.cos(yaw);
+    const moveX = (player.direction.x * cosY) + (player.direction.z * sinY);
+    const moveZ = (player.direction.z * cosY) - (player.direction.x * sinY);
+
+    player.velocity.x += moveX * speed * dt;
+    player.velocity.z += moveZ * speed * dt;
+
+    // جاذبية
+    player.velocity.y -= 9.8 * dt;
+    // تباطؤ
+    player.velocity.x -= player.velocity.x * 6 * dt;
+    player.velocity.z -= player.velocity.z * 6 * dt;
+
+    // وضعية الكاميرا
+    camera.rotation.order = 'YXZ';
+    camera.rotation.y = yaw;
+    camera.rotation.x = pitch;
+
+    // حركة بناء على الفيزياء المبسطة
+    camera.position.x += player.velocity.x * dt;
+    camera.position.y += player.velocity.y * dt;
+    camera.position.z += player.velocity.z * dt;
+
+    // اصطدام مع الأرض
+    if(camera.position.y < 1.6){
+      player.velocity.y = 0;
+      camera.position.y = 1.6;
+      player.canJump = true;
+    }
+
+    // اصطدام مع الصناديق (تبسيط عبر المسافة)
+    obstacles.children.forEach(box=>{
+      const d = box.position.distanceTo(camera.position);
+      const minDist = 1.2 + 0.8; // تقريب
+      if(d < minDist){
+        // دفع اللاعب للخلف
+        const push = new THREE.Vector3().subVectors(camera.position, box.position).normalize();
+        camera.position.addScaledVector(push, 0.08);
+        // تقليل السرعة
+        player.velocity.x *= 0.2;
+        player.velocity.z *= 0.2;
+      }
+    });
+
+    collectCheck();
+
+    renderer.render(scene, camera);
+  }
+
+  // إعادة تحجيم
+  window.addEventListener('resize', ()=>{
+    camera.aspect = window.innerWidth/window.innerHeight;
+    camera.updateProjectionMatrix();
+    renderer.setSize(window.innerWidth, window.innerHeight);
+  });
+
+  // زر البدء
+  const startBtn = document.getElementById('startBtn');
+  const startScreen = document.getElementById('startScreen');
+  startBtn.addEventListener('click', ()=>{
+    startScreen.style.display = 'none';
+    // وضع الكاميرا في نقطة بداية عشوائية آمنة
+    camera.position.set(0,1.6,8);
+    yaw = 0; pitch = 0;
+    lastTime = performance.now();
+    animate();
+  });
+
+  // تعليمات سريعة للنشر على GitHub
+  // ملاحظة: لحفظ اللعبة كملف HTML وحمله على GitHub Pages، احفظ هذه الصفحة باسم index.html واتباع خطوات رفع الملفات للمستودع ثم تفعيل GitHub Pages.
+
+  </script>
+</body>
+</html>
